@@ -10,6 +10,14 @@ from scipy.optimize import minimize
 def model(n, a, b, c, d, x0, y0):
     return n[0] * a + n[1] * c + x0, n[0] * b + n[1] * d + y0
     
+def estimate_travel(x, z, popt):
+    x0, z0 = popt[[4, 5]]
+    
+    delta = np.sqrt((x - x0)**2 + (z - z0)**2)      #Distance Travelled
+    d = 0.91                                        #Drag Coefficient
+    
+    return - np.log(delta)/np.log(d)
+    
 def fit_xz(n, pos):
     
     def loss(args, n, pos):
@@ -119,7 +127,10 @@ def main():
     distance = np.sqrt((x-xt)**2 + (z-zt)**2)
     
     if distance > warning_threshold:
-        print(f"Warning: Calculated position is {distance:.0f}m from target position")  
+        print(f"Warning: Calculated position is {distance:.0f}m from target position\n")
+        
+    t = estimate_travel(x, z, popt)
+    print(f"Estimated Travel time is {t:.0f} Ticks = {t/20:.1f} Seconds")
     
     ax.scatter(x, z, color="red", alpha=.3)
     
