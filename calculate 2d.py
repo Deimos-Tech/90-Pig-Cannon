@@ -16,6 +16,9 @@ def estimate_travel(x, z, popt):
     delta = np.sqrt((x - x0)**2 + (z - z0)**2)      #Distance Travelled
     d = 0.91                                        #Drag Coefficient
     
+    if delta == 0:
+        return 0
+    
     return - np.log(delta)/np.log(d)
     
 def fit_xz(n, pos):
