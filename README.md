@@ -1,7 +1,7 @@
 # Minecraft 26.1 Pig Cannon Project Files
 
 This repository collects the project files for a 26.1 pig teleporter cannon. The associated YouTube-Tutrial can be found at
-(TBA).
+https://youtu.be/_WBwPR8dpyo.
 
 ## Scripts
 To calibrate your fire at least three shots and note the number of items in the item-transfer-timers as well as the landing position.
