@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pig Cannon Calculator</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c232c; --line:#2a323d;
+    --txt:#e6edf3; --muted:#8b97a6; --accent:#f0883e; --accent2:#58a6ff;
+    --good:#3fb950; --warn:#e3b341; --bad:#f85149;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg); color:var(--txt);
+    font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  header{
+    padding:10px 16px; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:12px; background:var(--panel);
+  }
+  header h1{font-size:15px; margin:0; font-weight:600; letter-spacing:.3px}
+  header .sub{color:var(--muted); font-size:12px}
+  header .spacer{margin-left:auto}
+  header button{padding:6px 12px; font-size:12px}
+  main{flex:1; display:grid; grid-template-columns:340px 1fr; min-height:0}
+  #panel{
+    overflow-y:auto; padding:14px; border-right:1px solid var(--line); background:var(--panel);
+    scrollbar-width:thin; scrollbar-color:#2a323d transparent;
+  }
+  #panel::-webkit-scrollbar{width:9px}
+  #panel::-webkit-scrollbar-track{background:transparent}
+  #panel::-webkit-scrollbar-thumb{background:#2a323d; border-radius:5px; border:2px solid var(--panel)}
+  #panel::-webkit-scrollbar-thumb:hover{background:#3a4452}
+  #stage{position:relative; min-width:1px}
+  canvas{display:block; width:100%; height:100%}
+  .seg{margin-bottom:16px}
+  .seg h2{
+    font-size:11px; text-transform:uppercase; letter-spacing:.8px;
+    color:var(--muted); margin:0 0 8px; font-weight:600;
+  }
+  label{display:block; font-size:12px; color:var(--muted); margin:6px 0 2px}
+  input[type=number],input[type=text]{
+    width:100%; background:var(--panel2); border:1px solid var(--line);
+    color:var(--txt); padding:7px 9px; border-radius:6px; font:inherit;
+    -moz-appearance:textfield; appearance:textfield;
+  }
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button{ -webkit-appearance:none; margin:0 }
+  input:focus{outline:none; border-color:var(--accent2)}
+  .row{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+  button{
+    background:var(--panel2); color:var(--txt); border:1px solid var(--line);
+    padding:7px 10px; border-radius:6px; cursor:pointer; font:inherit; font-size:12px;
+  }
+  button:hover{border-color:var(--accent2)}
+  button.primary{background:var(--accent); border-color:var(--accent); color:#1a1205; font-weight:600}
+  button.primary:hover{filter:brightness(1.08)}
+  .btnrow{display:flex; gap:8px; flex-wrap:wrap}
+  table{width:100%; border-collapse:collapse; font-size:12px}
+  th,td{padding:3px 4px; text-align:right}
+  th{color:var(--muted); font-weight:600; font-size:10px; text-transform:uppercase; letter-spacing:.4px}
+  td input{padding:5px 6px; text-align:right}
+  .del{padding:2px 7px; font-size:11px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .read{background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:10px 12px}
+  .read .line{display:flex; justify-content:space-between; padding:2px 0}
+  .read .k{color:var(--muted)} .read .v{font-weight:600}
+  .pill{display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600}
+  .pill.ok{background:rgba(63,185,80,.15); color:var(--good)}
+  .pill.warn{background:rgba(227,179,65,.15); color:var(--warn)}
+  .pill.bad{background:rgba(248,81,73,.15); color:var(--bad)}
+  .pill.idle{background:rgba(139,151,166,.15); color:var(--muted)}
+  .hint{font-size:11px; color:var(--muted); background:var(--panel2);
+        border:1px solid var(--line); border-left:3px solid var(--accent);
+        padding:8px 10px; border-radius:6px; margin-top:6px}
+  .fit{font-size:11px; color:var(--muted); white-space:pre-wrap; font-family:ui-monospace,Menlo,Consolas,monospace; line-height:1.5}
+  #overlay{position:absolute; left:12px; bottom:12px; font-size:11px; color:var(--muted);
+           background:rgba(14,17,22,.7); padding:6px 10px; border-radius:6px; pointer-events:none}
+  #toast{position:absolute; top:12px; left:50%; transform:translateX(-50%);
+         background:var(--panel2); border:1px solid var(--line); color:var(--txt);
+         padding:8px 14px; border-radius:8px; font-size:12px; opacity:0; transition:opacity .25s; pointer-events:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>Pig Cannon Calculator</h1>
+  <span class="sub">90&deg; pig teleporter &middot; affine calibration &middot; click map to aim</span>
+  <span class="spacer"></span>
+  <button id="fitView" class="primary">Fit View</button>
+</header>
+<main>
+  <div id="panel">
+    <div class="seg">
+      <h2>Cannon Origin</h2>
+      <div class="row">
+        <div><label>x&#8320; (launch X)</label><input id="ox" type="number" placeholder="infer"></div>
+        <div><label>z&#8320; (launch Z)</label><input id="oz" type="number" placeholder="infer"></div>
+      </div>
+      <div class="hint">Leave blank to infer the launch point from your shots. Fill both to pin it exactly (more accurate with few shots).</div>
+    </div>
+
+    <div class="seg">
+      <h2>Calibration Shots</h2>
+      <table>
+        <thead><tr><th>n&#8321;</th><th>n&#8322;</th><th>x</th><th>z</th><th></th></tr></thead>
+        <tbody id="calib"></tbody>
+      </table>
+      <div class="btnrow" style="margin-top:8px">
+        <button id="addShot">+ Add shot</button>
+        <button id="clearCalib">Clear</button>
+      </div>
+      <div class="hint">Fire &ge;3 shots, record each timer count (n&#8321;,n&#8322;) and the pig's landing world (x,z). Recommended starter shots: (n&#8321;,n&#8322;) = <b>(100,0)</b>, <b>(0,100)</b>, <b>(100,100)</b> &mdash; one per axis plus a diagonal. &ge;5 well-spread shots give the best fit.</div>
+    </div>
+
+    <div class="seg">
+      <h2>Fit</h2>
+      <div class="fit" id="fitOut">&mdash;</div>
+    </div>
+
+    <div class="seg">
+      <h2>Target</h2>
+      <div class="row">
+        <div><label>Target X</label><input id="tx" type="number" placeholder="click map"></div>
+        <div><label>Target Z</label><input id="tz" type="number" placeholder="click map"></div>
+      </div>
+      <div class="hint">Click anywhere inside the 90&deg; cone on the map, or type coordinates. A target outside the cone needs negative timer counts &rarr; unreachable.</div>
+    </div>
+
+    <div class="seg">
+      <h2>Result</h2>
+      <div class="read" id="readout">
+        <div class="line"><span class="k">n&#8321; (timer 1)</span><span class="v mono" id="rN1">&mdash;</span></div>
+        <div class="line"><span class="k">n&#8322; (timer 2)</span><span class="v mono" id="rN2">&mdash;</span></div>
+        <div class="line"><span class="k">Predicted landing</span><span class="v mono" id="rLand">&mdash;</span></div>
+        <div class="line"><span class="k">Dist from cannon</span><span class="v mono" id="rDist">&mdash;</span></div>
+        <div class="line"><span class="k">Step offset</span><span class="v mono" id="rMiss">&mdash;</span></div>
+        <div class="line"><span class="k">Flight time</span><span class="v" id="rTime">&mdash;</span></div>
+        <div class="line" style="margin-top:6px"><span class="k">Status</span><span id="rStatus" class="pill idle">idle</span></div>
+      </div>
+      <div class="hint">Timer counts are whole items, so the landing snaps to a grid ~100 blocks apart. "Step offset" is the unavoidable error to the nearest reachable point &mdash; not a miss, as long as the target is inside the cone.</div>
+    </div>
+
+    <div class="seg">
+      <h2>Save / Load</h2>
+      <div class="btnrow">
+        <button id="saveBtn" class="primary">Save (.json)</button>
+        <button id="loadBtn">Load (.json)</button>
+        <input id="fileInput" type="file" accept="application/json" hidden>
+      </div>
+    </div>
+  </div>
+
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="overlay">drag = pan &middot; wheel = zoom &middot; click = set target</div>
+    <div id="toast"></div>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+/* ============================== State ============================== */
+const state = {
+  origin: { x0: null, z0: null },
+  calib: [
+    { n1: 64,  n2: 64,  x: -115672, z: 18415 },
+    { n1: 128, n2: 64,  x: -111251, z: 13541 },
+    { n1: 32,  n2: 192, x: -127520, z: 11303 }
+  ],
+  target: { x: null, z: null }
+};
+const DRAG = 0.91;
+
+/* ============================ Math core =========================== */
+function solve(A, b){
+  const n = b.length;
+  const M = A.map((r,i)=>r.concat(b[i]));
+  for(let c=0;c<n;c++){
+    let p=c;
+    for(let r=c+1;r<n;r++) if(Math.abs(M[r][c])>Math.abs(M[p][c])) p=r;
+    if(Math.abs(M[p][c])<1e-12) return null;
+    [M[c],M[p]]=[M[p],M[c]];
+    const piv=M[c][c];
+    for(let j=c;j<=n;j++) M[c][j]/=piv;
+    for(let r=0;r<n;r++){
+      if(r===c) continue;
+      const f=M[r][c];
+      if(f!==0) for(let j=c;j<=n;j++) M[r][j]-=f*M[c][j];
+    }
+  }
+  return M.map(r=>r[n]);
+}
+
+function lstsq(M, y){
+  const m=M.length, n=M[0].length;
+  const A=Array.from({length:n},()=>new Array(n).fill(0));
+  const b=new Array(n).fill(0);
+  for(let i=0;i<n;i++)
+    for(let j=0;j<n;j++){
+      let s=0; for(let k=0;k<m;k++) s+=M[k][i]*M[k][j];
+      A[i][j]=s;
+    }
+  for(let i=0;i<n;i++){
+    let s=0; for(let k=0;k<m;k++) s+=M[k][i]*y[k];
+    b[i]=s;
+  }
+  return solve(A,b);
+}
+
+function fitModel(){
+  const rows = state.calib.filter(r=>isFinite(r.n1)&&isFinite(r.n2)&&isFinite(r.x)&&isFinite(r.z));
+  if(rows.length<2) return null;
+  let a,b,c,d,x0,z0, locked=false;
+
+  if(state.origin.x0 != null && state.origin.z0 != null){
+    locked=true;
+    x0=state.origin.x0; z0=state.origin.z0;
+    const M=rows.map(r=>[r.n1,r.n2]);
+    const ca=lstsq(M,rows.map(r=>r.x-x0)); if(!ca) return null; a=ca[0]; c=ca[1];
+    const cb=lstsq(M,rows.map(r=>r.z-z0)); if(!cb) return null; b=cb[0]; d=cb[1];
+  } else {
+    const Mx=rows.map(r=>[r.n1,r.n2,1]);
+    const x=lstsq(Mx,rows.map(r=>r.x)); if(!x) return null;
+    const z=lstsq(Mx,rows.map(r=>r.z)); if(!z) return null;
+    a=x[0]; c=x[1]; x0=x[2];
+    b=z[0]; d=z[1]; z0=z[2];
+  }
+
+  const res=rows.map(r=>{
+    const px=a*r.n1+c*r.n2+x0, pz=b*r.n1+d*r.n2+z0;
+    return { px, pz, err: Math.hypot(px-r.x, pz-r.z) };
+  });
+
+  return { a,b,c,d,x0,z0, locked, rows, res, maxErr: Math.max(...res.map(r=>r.err)) };
+}
+
+function model(fit, n1, n2){
+  return { x: fit.a*n1 + fit.c*n2 + fit.x0,
+           z: fit.b*n1 + fit.d*n2 + fit.z0 };
+}
+
+// Continuous solve: timer counts (may be negative if target is outside the cone).
+function solveTargetRaw(fit, tx, tz){
+  const det = fit.a*fit.d - fit.c*fit.b;
+  if(Math.abs(det)<1e-9) return null;
+  const n1 = ( fit.d*(tx-fit.x0) - fit.c*(tz-fit.z0))/det;
+  const n2 = (-fit.b*(tx-fit.x0) + fit.a*(tz-fit.z0))/det;
+  return [n1,n2];
+}
+
+function flightTicks(dist){ return -Math.log(dist)/Math.log(DRAG); }
+
+/* ============================== View ============================== */
+const cv=document.getElementById("cv");
+const ctx=cv.getContext("2d");
+let view={ cx:0, cz:0, scale:0.01 };
+let fit=null;
+let drawPending=false;
+
+function scheduleDraw(){
+  if(drawPending) return;
+  drawPending=true;
+  requestAnimationFrame(()=>{ drawPending=false; draw(); });
+}
+
+function resize(){
+  const r=cv.parentElement.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  cv.width=Math.max(1,r.width*dpr); cv.height=Math.max(1,r.height*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  scheduleDraw();
+}
+window.addEventListener("resize", resize);
+
+function w2s(wx,wz){
+  const r=cv.getBoundingClientRect();
+  return { x: r.width/2 + (wx-view.cx)*view.scale,
+           y: r.height/2 + (wz-view.cz)*view.scale };
+}
+function s2w(sx,sy){
+  const r=cv.getBoundingClientRect();
+  return { x: view.cx + (sx-r.width/2)/view.scale,
+           z: view.cz + (sy-r.height/2)/view.scale };
+}
+
+function niceStep(raw){
+  const p=Math.pow(10,Math.floor(Math.log10(raw)));
+  const f=raw/p;
+  const m = f<1.5?1 : f<3?2 : f<7?5 : 10;
+  return m*p;
+}
+
+function autoScale(){
+  const pts=[];
+  if(fit){ pts.push({x:fit.x0,z:fit.z0});
+    for(const r of fit.rows) pts.push({x:r.x,z:r.z});
+  }
+  if(state.target.x!=null) pts.push({x:state.target.x,z:state.target.z});
+  if(!pts.length) return;
+  let minX=Infinity,maxX=-Infinity,minZ=Infinity,maxZ=-Infinity;
+  for(const p of pts){ minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x);
+                       minZ=Math.min(minZ,p.z); maxZ=Math.max(maxZ,p.z); }
+  const r=cv.getBoundingClientRect();
+  const pad=80;
+  const sx=(r.width-2*pad)/Math.max(1,maxX-minX);
+  const sz=(r.height-2*pad)/Math.max(1,maxZ-minZ);
+  view.scale=Math.max(1e-7,Math.min(sx,sz));
+  view.cx=(minX+maxX)/2; view.cz=(minZ+maxZ)/2;
+}
+
+// Clip a convex polygon to the half-plane g(p) >= 0 (Sutherland-Hodgman).
+function clipHalf(poly, g){
+  if(poly.length<3) return poly;
+  const out=[];
+  for(let i=0;i<poly.length;i++){
+    const A=poly[i], B=poly[(i+1)%poly.length];
+    const ga=g(A), gb=g(B), ain=ga>=0, bin=gb>=0;
+    if(ain) out.push(A);
+    if(ain!==bin){ const t=ga/(ga-gb); out.push({x:A.x+t*(B.x-A.x), y:A.y+t*(B.y-A.y)}); }
+  }
+  return out;
+}
+
+/* ============================== Draw ============================== */
+function fmtNum(n){ return (Math.round(n*10)/10).toLocaleString(); }
+
+function draw(){
+  const r=cv.getBoundingClientRect();
+  ctx.clearRect(0,0,r.width,r.height);
+  ctx.fillStyle="#0e1116"; ctx.fillRect(0,0,r.width,r.height);
+  if(!fit){ drawGrid(r); return; }
+
+  drawGrid(r);
+
+  // --- 90 degree reachable cone (n1>=0, n2>=0), clipped to screen (truly infinite) ---
+  const o=w2s(fit.x0,fit.z0);
+  const rect=[{x:0,y:0},{x:r.width,y:0},{x:r.width,y:r.height},{x:0,y:r.height}];
+  const det=fit.a*fit.d - fit.c*fit.b;
+  const n1of=p=>{const w=s2w(p.x,p.y); return (fit.d*(w.x-fit.x0)-fit.c*(w.z-fit.z0))/det;};
+  const n2of=p=>{const w=s2w(p.x,p.y); return (-fit.b*(w.x-fit.x0)+fit.a*(w.z-fit.z0))/det;};
+  let poly=clipHalf(rect, n1of);
+  poly=clipHalf(poly, n2of);
+  if(poly.length>=3){
+    ctx.beginPath();
+    poly.forEach((p,i)=> i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
+    ctx.closePath();
+    ctx.fillStyle="rgba(240,136,62,.10)"; ctx.fill();
+  }
+  const dir=(ax,az)=>{ const L=Math.hypot(ax,az)||1; return {x:ax/L, z:az/L}; };
+  const d1=dir(fit.a,fit.b), d2=dir(fit.c,fit.d);
+  const RL=Math.hypot(r.width,r.height)*3;
+  ctx.strokeStyle="rgba(240,136,62,.55)"; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(o.x,o.y); ctx.lineTo(o.x+d1.x*RL, o.y+d1.z*RL);
+  ctx.moveTo(o.x,o.y); ctx.lineTo(o.x+d2.x*RL, o.y+d2.z*RL); ctx.stroke();
+  const mid={x:(d1.x+d2.x)/2, z:(d1.z+d2.z)/2}; const mL=Math.hypot(mid.x,mid.z)||1;
+  const lr=Math.min(r.width,r.height)*0.35;
+  ctx.fillStyle="rgba(240,136,62,.85)"; ctx.font="11px sans-serif";
+  ctx.fillText("90° range", o.x+mid.x/mL*lr+4, o.y+mid.z/mL*lr);
+
+  // calibration points + error lines
+  fit.rows.forEach((_,i)=>{
+    const row=fit.rows[i];
+    const s=w2s(row.x,row.z);
+    ctx.strokeStyle="rgba(230,237,243,.9)"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(s.x-5,s.y-5); ctx.lineTo(s.x+5,s.y+5);
+    ctx.moveTo(s.x-5,s.y+5); ctx.lineTo(s.x+5,s.y-5); ctx.stroke();
+    const pr=fit.res[i];
+    const ps=w2s(pr.px,pr.pz);
+    ctx.strokeStyle="rgba(230,237,243,.18)"; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(s.x,s.y); ctx.lineTo(ps.x,ps.y); ctx.stroke();
+  });
+
+  // launch marker
+  const locked = state.origin.x0 != null && state.origin.z0 != null;
+  ctx.fillStyle="#58a6ff"; ctx.beginPath(); ctx.arc(o.x,o.y,5,0,7); ctx.fill();
+  ctx.strokeStyle="#0e1116"; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(o.x,o.y,5,0,7); ctx.stroke();
+  ctx.fillStyle="#c9d4e0"; ctx.font="11px sans-serif"; ctx.fillText(locked?"cannon":"cannon (inferred)", o.x+9, o.y-8);
+
+  // target + predicted landing (snapped to whole items)
+  if(state.target.x!=null){
+    const ts=w2s(state.target.x,state.target.z);
+    ctx.strokeStyle="#f85149"; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.moveTo(ts.x-6,ts.y-6); ctx.lineTo(ts.x+6,ts.y+6);
+    ctx.moveTo(ts.x-6,ts.y+6); ctx.lineTo(ts.x+6,ts.y-6); ctx.stroke();
+
+    const raw=solveTargetRaw(fit,state.target.x,state.target.z);
+    if(raw){
+      const n1=Math.max(0,Math.round(raw[0])), n2=Math.max(0,Math.round(raw[1]));
+      const land=model(fit,n1,n2);
+      const pls=w2s(land.x,land.z);
+      ctx.fillStyle="rgba(248,81,73,.35)"; ctx.beginPath(); ctx.arc(pls.x,pls.y,5,0,7); ctx.fill();
+      ctx.strokeStyle="rgba(248,81,73,.6)"; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(ts.x,ts.y); ctx.lineTo(pls.x,pls.y); ctx.stroke();
+    }
+  }
+}
+
+function drawGrid(r){
+  if(!(view.scale>0)) return;
+  const step=niceStep(70/view.scale);
+  const tl=s2w(0,0), br=s2w(r.width,r.height);
+  ctx.strokeStyle="rgba(255,255,255,.05)"; ctx.lineWidth=1;
+  ctx.fillStyle="#5b6675"; ctx.font="10px sans-serif";
+  const startX=Math.floor(tl.x/step)*step, endX=Math.ceil(br.x/step)*step;
+  for(let x=startX;x<=endX;x+=step){ const s=w2s(x,0);
+    ctx.beginPath(); ctx.moveTo(s.x,0); ctx.lineTo(s.x,r.height); ctx.stroke(); }
+  const startZ=Math.floor(tl.z/step)*step, endZ=Math.ceil(br.z/step)*step;
+  for(let z=startZ;z<=endZ;z+=step){ const s=w2s(0,z);
+    ctx.beginPath(); ctx.moveTo(0,s.y); ctx.lineTo(r.width,s.y); ctx.stroke(); }
+  const barPx=step*view.scale;
+  const bx=r.width-30-barPx, by=r.height-24;
+  ctx.strokeStyle="#8b97a6"; ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx+barPx,by); ctx.stroke();
+  ctx.fillStyle="#8b97a6"; ctx.fillText(fmtNum(step)+" blocks", bx-2, by-5);
+}
+
+/* ============================== Render ============================= */
+function recompute(){
+  fit=fitModel();
+  const fo=document.getElementById("fitOut");
+  if(!fit){
+    fo.textContent="Need ≥2 shots (≥3 if origin not locked).";
+  } else {
+    const f=fmtNum;
+    let s="";
+    s+=`x = ${f(fit.a)}·n₁ + ${f(fit.c)}·n₂ + ${f(fit.x0)}\n`;
+    s+=`z = ${f(fit.b)}·n₁ + ${f(fit.d)}·n₂ + ${f(fit.z0)}\n`;
+    s+= (fit.locked?"(origin locked)\n":"(origin inferred)\n");
+    s+=`fit max error: ${f(fit.maxErr)} blocks\n`;
+    s+=`shots: ${fit.rows.length}`;
+    fo.textContent=s;
+  }
+  updateResult();
+  scheduleDraw();
+}
+
+function updateResult(){
+  const set=(id,v)=>document.getElementById(id).textContent=v;
+  const st=document.getElementById("rStatus");
+  if(!fit || state.target.x==null){
+    set("rN1","—"); set("rN2","—"); set("rLand","—"); set("rMiss","—"); set("rTime","—");
+    st.className="pill idle"; st.textContent="idle"; return;
+  }
+  const raw=solveTargetRaw(fit,state.target.x,state.target.z);
+  if(!raw){ st.className="pill bad"; st.textContent="singular"; return; }
+  const inCone = raw[0]>=-1e-6 && raw[1]>=-1e-6;
+  const n1=Math.max(0,Math.round(raw[0])), n2=Math.max(0,Math.round(raw[1]));
+  const land=model(fit,n1,n2);
+  const offset=Math.hypot(land.x-state.target.x, land.z-state.target.z);
+  const dist=Math.hypot(land.x-fit.x0, land.z-fit.z0);
+  const dCannon=Math.hypot(state.target.x-fit.x0, state.target.z-fit.z0);
+  const t=flightTicks(dist);
+  set("rN1", n1);
+  set("rN2", n2);
+  set("rLand", `(${Math.round(land.x)}, ${Math.round(land.z)})`);
+  set("rDist", `${Math.round(dCannon)} m`);
+  set("rMiss", `${Math.round(offset)} m`);
+  set("rTime", `${Math.round(t)} ticks (${fmtNum(t/20)} s)`);
+  if(!inCone){ st.className="pill bad"; st.textContent="outside 90° range"; }
+  else { st.className="pill ok"; st.textContent="in range"; }
+}
+
+/* ============================ Calib table ========================== */
+function renderCalib(){
+  const tb=document.getElementById("calib"); tb.innerHTML="";
+  state.calib.forEach((r,i)=>{
+    const tr=document.createElement("tr");
+    ["n1","n2","x","z"].forEach(k=>{
+      const td=document.createElement("td");
+      const inp=document.createElement("input");
+      inp.type="number"; inp.value=isFinite(r[k])?r[k]:"";
+      inp.addEventListener("input",()=>{ r[k]=parseFloat(inp.value); recompute(); });
+      td.appendChild(inp); tr.appendChild(td);
+    });
+    const td=document.createElement("td");
+    const b=document.createElement("button"); b.className="del"; b.textContent="×";
+    b.addEventListener("click",()=>{ state.calib.splice(i,1); renderCalib(); recompute(); });
+    td.appendChild(b); tr.appendChild(td);
+    tb.appendChild(tr);
+  });
+}
+
+/* ============================== Wiring ============================ */
+document.getElementById("addShot").addEventListener("click",()=>{
+  state.calib.push({n1:NaN,n2:NaN,x:NaN,z:NaN}); renderCalib(); recompute();
+});
+document.getElementById("clearCalib").addEventListener("click",()=>{
+  state.calib=[]; renderCalib(); recompute();
+});
+document.getElementById("fitView").addEventListener("click",()=>{ autoScale(); scheduleDraw(); });
+
+function readOrigin(){
+  const ox=parseFloat(document.getElementById("ox").value);
+  const oz=parseFloat(document.getElementById("oz").value);
+  state.origin.x0=isFinite(ox)?ox:null;
+  state.origin.z0=isFinite(oz)?oz:null;
+}
+document.getElementById("ox").addEventListener("input",()=>{ readOrigin(); recompute(); });
+document.getElementById("oz").addEventListener("input",()=>{ readOrigin(); recompute(); });
+
+document.getElementById("tx").addEventListener("input",e=>{ state.target.x=parseFloat(e.target.value); recompute(); });
+document.getElementById("tz").addEventListener("input",e=>{ state.target.z=parseFloat(e.target.value); recompute(); });
+
+/* canvas interaction */
+let drag=null;
+cv.addEventListener("mousedown",e=>{ drag={x:e.offsetX,y:e.offsetY,cx:view.cx,cz:view.cz,moved:false}; });
+window.addEventListener("mouseup",()=>{ drag=null; });
+cv.addEventListener("mousemove",e=>{
+  if(!drag) return;
+  const dx=e.offsetX-drag.x, dy=e.offsetY-drag.y;
+  if(Math.abs(dx)+Math.abs(dy)>4) drag.moved=true;
+  view.cx=drag.cx - dx/view.scale;
+  view.cz=drag.cz - dy/view.scale;
+  scheduleDraw();
+});
+cv.addEventListener("click",e=>{
+  if(drag && drag.moved) return;
+  const w=s2w(e.offsetX,e.offsetY);
+  state.target.x=Math.round(w.x); state.target.z=Math.round(w.z);
+  document.getElementById("tx").value=state.target.x;
+  document.getElementById("tz").value=state.target.z;
+  recompute();
+});
+cv.addEventListener("wheel",e=>{
+  e.preventDefault();
+  const before=s2w(e.offsetX,e.offsetY);
+  const f=e.deltaY<0?1.15:1/1.15;
+  view.scale=Math.max(1e-9,Math.min(1e9,view.scale*f));
+  const after=s2w(e.offsetX,e.offsetY);
+  view.cx+=before.x-after.x; view.cz+=before.z-after.z;
+  scheduleDraw();
+},{passive:false});
+
+/* save / load */
+function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.style.opacity=1;
+  setTimeout(()=>t.style.opacity=0,1600); }
+document.getElementById("saveBtn").addEventListener("click",()=>{
+  const data={ calibration:state.calib, origin:state.origin, target:state.target };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="pigcannon.json"; a.click(); URL.revokeObjectURL(a.href);
+  toast("Saved pigcannon.json");
+});
+document.getElementById("loadBtn").addEventListener("click",()=>document.getElementById("fileInput").click());
+document.getElementById("fileInput").addEventListener("change",e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{
+    const d=JSON.parse(rd.result);
+    if(Array.isArray(d.calibration)) state.calib=d.calibration;
+    if(d.origin) state.origin=d.origin;
+    if(d.target) state.target=d.target;
+    document.getElementById("ox").value=state.origin.x0 != null?state.origin.x0:"";
+    document.getElementById("oz").value=state.origin.z0 != null?state.origin.z0:"";
+    document.getElementById("tx").value=isFinite(state.target.x)?state.target.x:"";
+    document.getElementById("tz").value=isFinite(state.target.z)?state.target.z:"";
+    renderCalib(); autoScale(); recompute();
+    toast("Loaded "+f.name);
+  }catch(err){ toast("Load failed: invalid file"); } };
+  rd.readAsText(f); e.target.value="";
+});
+
+/* ============================== Boot ============================== */
+function boot(){
+  renderCalib();
+  recompute();   // builds fit first so autoScale can frame the cannon
+  autoScale();
+  resize();
+}
+boot();
+</script>
+</body>
+</html>
